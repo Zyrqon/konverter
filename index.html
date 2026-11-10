@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Переводилка — конвертер величин</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>">
+<style>
+:root{--bg:#0b0f14;--card:#121a23;--line:#1f2b38;--txt:#e7eef7;--dim:#8ba1b8;--acc:#4da3ff}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--txt);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 16px}
+.wrap{width:100%;max-width:560px}
+h1{font-size:22px;font-weight:700;margin-bottom:4px}
+.sub{color:var(--dim);font-size:14px;margin-bottom:20px}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.tab{background:var(--card);border:1px solid var(--line);color:var(--dim);border-radius:999px;padding:8px 16px;font-size:14px;cursor:pointer;transition:.15s}
+.tab.on{background:var(--acc);border-color:var(--acc);color:#04121f;font-weight:700}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px}
+.f{display:flex;gap:10px;align-items:center}
+input[type=number],select{background:#0a1118;border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:12px;font-size:16px;outline:none;width:100%}
+input[type=number]:focus,select:focus{border-color:var(--acc)}
+input[type=number]{font-variant-numeric:tabular-nums}
+.f2{display:flex;flex-direction:column;gap:6px;flex:1}
+.fl{font-size:12px;color:var(--dim)}
+.swap{flex:none;background:#182533;border:1px solid var(--line);border-radius:50%;width:40px;height:40px;color:var(--txt);font-size:17px;cursor:pointer;transition:.15s}
+.swap:hover{background:var(--acc);color:#04121f}
+.res{font-size:13px;color:var(--dim);margin-top:10px;font-variant-numeric:tabular-nums}
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.q{background:#0a1118;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13px;color:var(--dim)}
+.q b{color:var(--txt);display:block;font-size:15px;margin-top:2px;font-variant-numeric:tabular-nums}
+footer{margin-top:20px;color:#3d5068;font-size:12px;text-align:center}
+a{color:#3d5068}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Переводилка</h1>
+<div class="sub">Конвертер величин. Считает в браузере.</div>
+<div class="tabs" id="tabs"></div>
+<div class="card">
+  <div class="f">
+    <div class="f2"><span class="fl">Откуда</span><input type="number" id="vin" value="1"><select id="from"></select></div>
+    <button class="swap" id="swap" title="Поменять">⇄</button>
+    <div class="f2"><span class="fl">Куда</span><input type="number" id="vout" readonly><select id="to"></select></div>
+  </div>
+</div>
+<div class="card"><div class="quick" id="quick"></div></div>
+<footer><a href="https://zyrqon.github.io">zyrqon.github.io</a></footer>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const D={
+"Длина":{u:["мм","см","м","км","дюйм","фут","ярд","миля"],k:[.001,.01,1,1000,.0254,.3048,.9144,1609.344]},
+"Масса":{u:["г","кг","т","фунт","унция"],k:[.001,1,1000,.45359237,.028349523]},
+"Температура":{u:["°C","°F","K"],special:1},
+"Скорость":{u:["м/с","км/ч","миль/ч","узел"],k:[1,3.6,1.609344,1.852]},
+"Площадь":{u:["см²","м²","км²","сотка","акр"],k:[.0001,1,1e6,100,4046.8564224]},
+"Объём":{u:["мл","л","м³","чашка (US)","галлон (US)"],k:[.001,1,1000,.2365882365,3.785411784]},
+"Время":{u:["с","мин","ч","сутки","неделя"],k:[1,60,3600,86400,604800]},
+"Данные":{u:["Б","КБ","МБ","ГБ","ТБ"],k:[1,1024,1048576,1073741824,1099511627776]}
+};
+let cat="Длина";
+function fill(){
+  $("tabs").innerHTML="";
+  for(const c in D){const b=document.createElement("button");b.className="tab"+(c==cat?" on":"");b.textContent=c;b.onclick=()=>{cat=c;fill()};$("tabs").appendChild(b)}
+  const U=D[cat].u,opts=U.map((u,i)=>`<option value="${i}">${u}</option>`).join("");
+  $("from").innerHTML=opts;$("to").innerHTML=opts;
+  $("to").value=Math.min(1,U.length-1);$("vin").value="1";calc();
+}
+function t2c(v){ // значение в °C
+  const n=parseFloat($("from").value); // индекс
+  if(n==0)return v; if(n==1)return (v-32)*5/9; return v-273.15;
+}
+function c2t(c){ const n=+$("to").value;
+  if(n==0)return c; if(n==1)return c*9/5+32; return c+273.15;
+}
+function fmt(x){ if(!isFinite(x))return "—"; const a=Math.abs(x); if(a!==0&&(a<1e-4||a>=1e9))return x.toExponential(4); return +x.toPrecision(7)+"" }
+function calc(){
+  const d=D[cat],U=d.u;
+  const v=parseFloat($("vin").value);
+  if(!d.special){const k=d.k;x= v*+k[+$("from").value]/+k[+$("to").value];
+    $("vout").value=fmt(x);
+    const u=[+$("from").value,+$("to").value];
+    let q="";U.forEach((un,i)=>{ if(i!=u[0]&&i!=u[1])q+=`<div class="q">${v} ${un} в ${un==U[u[1]]?U[u[0]]:"1 "+un}: <b>${fmt(i==u[1]?v*d.k[u[0]]/d.k[u[1]]*d.k[i]:v*d.k[u[0]]/d.k[i])}</b></div>` });
+    $("quick").innerHTML=q;
+  } else {
+    const c=t2c(v);$("vout").value=fmt(c2t(c));
+    $("quick").innerHTML=`<div class="q">по Цельсию: <b>${fmt(c)}</b></div><div class="q">по Фаренгейту: <b>${fmt(c*9/5+32)}</b></div><div class="q">по Кельвину: <b>${fmt(c+273.15)}</b></div>`;
+  }
+}
+function fillq(){calc()}
+$("from").onchange=$("to").onchange=$("vin").oninput=calc;
+$("swap").onclick=()=>{const a=$("from").value;$("from").value=$("to").value;$("to").value=a;
+  if(!$("vin").readOnly){const t=$("vin").value;$("vin").value=$("vout").value;$("vout").value=t}
+  calc()};
+fill();
+</script>
+</body>
+</html>
